@@ -10,5 +10,7 @@ typedef enum FIFO_Type_t{
 #define FIFO_READ_SIZE   2048
 #define NAMED_PIPE_PATH     "/tmp/redis-pipe0"
 
+void setFIFOEventLoop(redisServer *server, FIFO_Type ft, const char *fifo_path);
+
 
 #endif

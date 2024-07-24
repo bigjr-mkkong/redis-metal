@@ -6,6 +6,8 @@
 #include <errno.h>
 
 #include "fifo.h"
+#include "server.h"
+#include "ae.h"
 
 
 char fifo_send_path[] = "./fifo_send";
@@ -16,7 +18,7 @@ int createNamedPipe(char *path){
     int fd;
 
     mkfifo(path);
-    fd = open(path, O_RDONLY, 0x1b6);
+    fd = open(path, O_RDONLY | O_NONBLOCK, 0x1b6);
     if(fd < 0){
         fprintf("Failed to create Named Pipe: %s\n", strerror(errno));
         return -1;
@@ -74,8 +76,8 @@ void setFIFOEventLoop(redisServer *server, FIFO_Type ft, const char *fifo_path){
     return;
 }
 
-void readFromFifo(aeEventLoop el, int fd, void *privdat, int mask){
-    client *cl = (client*)privdat;
+void readFromFIFO(aeEventLoop el, int fd, void *private_data, int mask){
+    client *cl = (client*)private_data;
     if(!cl){
         zfree(buf);
         return;
