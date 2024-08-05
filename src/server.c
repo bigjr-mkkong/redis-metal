@@ -22,6 +22,8 @@
 #include "mstr.h"
 #include "ebuckets.h"
 
+#include "fifo.h"
+
 #include <time.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -2663,7 +2665,8 @@ void initServer(void) {
     }
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
-    setFIFOEventLoop(server, NAMED_PIPE, NAMED_PIPE_PATH);
+    /* serverLog(LL_WARNING, "Start setting FIFO event"); */
+    setFIFOEventLoop(&server, NAMED_PIPE, NAMED_PIPE_PATH);
 
     /* Create the Redis databases, and initialize other internal state. */
     int slot_count_bits = 0;

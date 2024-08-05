@@ -1,3 +1,4 @@
+#define FIFO_IMPL
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -17,10 +18,10 @@ char fifo_recv_path[] = "./fifo_recv";
 int createNamedPipe(char *path){
     int fd;
 
-    mkfifo(path);
+    mkfifo(path, 0x1b6);
     fd = open(path, O_RDONLY | O_NONBLOCK, 0x1b6);
     if(fd < 0){
-        fprintf("Failed to create Named Pipe: %s\n", strerror(errno));
+        fprintf(stderr, "Failed to create Named Pipe: %s\n", strerror(errno));
         return -1;
     }
 
@@ -40,24 +41,51 @@ int createNewFIFO(FIFO_Type ft, char *path){
             ret = createNamedPipe(path);
             break;
 
-        case(COHORT):
+        case(COHORT_QUEUE):
             createCohortQueue();
             break;
 
         default:
             fprintf(stderr, "Failed to initialize new FIFO\n");
-            return = -1;
+            ret = -1;
             break;
     }
 
     return ret;
 }
 
-void setFIFOEventLoop(redisServer *server, FIFO_Type ft, const char *fifo_path){
+void readFromFIFO(struct aeEventLoop *el, int fd, void *private_data, int mask){
+    fprintf(stdout, "Read something");
+    client *cl = (client*)private_data;
+    if(!cl)
+        return;
+
+    char *buf = zcalloc(FIFO_READ_SIZE);
+    ssize_t nread = read(fd, buf, sizeof(buf));
+
+    if(nread == -1){
+        zfree(buf);
+        perror("read");
+        return;
+    }else if(nread == 0){
+        zfree(buf);
+        return;
+    }
+
+
+    cl->querybuf = sdscatlen(cl->querybuf, buf, nread);
+
+    processInputBuffer(cl);
+
+    zfree(buf);
+    return;
+}
+
+void setFIFOEventLoop(struct redisServer *server, FIFO_Type ft, char *fifo_path){
     int fd = createNewFIFO(ft, fifo_path);
     if(fd < 0){
         fprintf(stderr, "Failed to create new FIFO\n");
-        return -1;
+        return;
     }
 
     if(ft == NAMED_PIPE){
@@ -76,30 +104,3 @@ void setFIFOEventLoop(redisServer *server, FIFO_Type ft, const char *fifo_path){
     return;
 }
 
-void readFromFIFO(aeEventLoop el, int fd, void *private_data, int mask){
-    client *cl = (client*)private_data;
-    if(!cl){
-        zfree(buf);
-        return;
-    }
-
-    char *buf = zcalloc(FIFO_READ_SIZE);
-    ssize_t nread = read(fd, buf, sizeof(buf));
-
-    if(nread == -1){
-        zfree(buf);
-        perror("read");
-        return;
-    }else if(nread == 0){
-        zfree(buf);
-        return;
-    }
-
-
-    cl->querybuf = sdscatlen(c->querybuf, buf, nread);
-
-    processInputBuffer(c);
-
-    zfree(buf);
-    return;
-}
