@@ -59,6 +59,12 @@
 #define GNUC_VERSION_STR "0.0.0"
 #endif
 
+/* FIFO INFOs for FIFO transfer */
+FIFO_info fifo_read = {
+    .named_pipe_path     = NAMED_PIPE_PATH,
+    .ft                  = NAMED_PIPE,
+};
+
 /* Our shared "common" objects */
 
 struct sharedObjectsStruct shared;
@@ -2666,7 +2672,7 @@ void initServer(void) {
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* serverLog(LL_WARNING, "Start setting FIFO event"); */
-    setFIFOEventLoop(&server, NAMED_PIPE, NAMED_PIPE_PATH);
+    setFIFOEventLoop(&server, &fifo_read);
 
     /* Create the Redis databases, and initialize other internal state. */
     int slot_count_bits = 0;
