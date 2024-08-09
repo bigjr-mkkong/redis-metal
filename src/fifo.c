@@ -10,19 +10,21 @@
 #include "server.h"
 #include "ae.h"
 
-
-char fifo_send_path[] = "./fifo_send";
-char fifo_recv_path[] = "./fifo_recv";
+extern FIFO_info fifo_write;
 
 int named_pipe_exist(char *pathname){
-    return F_OK == access(pathname, R_OK | W_OK | (!X_OK));
+    return (access(pathname, R_OK | W_OK) == 0);
 }
 
 int legal_pipe(char *pathname){
     struct stat *statbuf = (struct stat*)zcalloc(sizeof(struct stat));
     int ret = stat(pathname, statbuf);
-    
-    if(statbuf->st_mode != S_IFIFO){
+    if(ret == -1){
+        perror("stat");
+        exit(EXIT_FAILURE);
+    }
+
+    if(S_ISFIFO(statbuf->st_mode)){
         fprintf(stderr, "Wrong FIFO type, re-create FIFO\n");
         return 0;
     }
@@ -33,20 +35,48 @@ int legal_pipe(char *pathname){
 }
 
 int createNamedPipe(FIFO_info *fifo_info){
+    int fd, ret = 0;
+    char *path = fifo_info->named_pipe_path;
+    
+    if(!named_pipe_exist(path)){
+        ret = mkfifo(path, 0666);
+        if(ret <= -1){
+            perror("mkfio");
+            exit(EXIT_FAILURE);
+        }
+        return 1;
+    }
+
+    if(!legal_pipe(path)){
+        ret = unlink(path);
+        if(ret){
+            perror("remove");
+            exit(EXIT_FAILURE);
+        }
+
+        ret = mkfifo(path, 0666);
+        if(ret <= -1){
+            perror("mkfio");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+
+    return 1;
+    
+}
+
+int openNamedPipe(FIFO_info *fifo_info){
     int fd;
     char *path = fifo_info->named_pipe_path;
 
-    if(!named_pipe_exist(path) || !legal_pipe(path))
-        mkfifo(path, 0x1b6);
-
-    fd = open(path, O_RDONLY | O_NONBLOCK, 0x1b6);
+    fd = open(path, fifo_info->mode);
     if(fd < 0){
-        fprintf(stderr, "Failed to create Named Pipe: %s\n", strerror(errno));
+        fprintf(stderr, "Failed to open Named Pipe: %s\n", strerror(errno));
         return -1;
     }
 
     return fd;
-    
 }
 
 int createCohortQueue(){
@@ -91,30 +121,44 @@ void readFromFIFO(struct aeEventLoop *el, int fd, void *private_data, int mask){
         return;
     }
 
-
     cl->querybuf = sdscatlen(cl->querybuf, buf, nread);
-
+    putClientInPendingWriteQueue(cl);
     processInputBuffer(cl);
 
     zfree(buf);
     return;
 }
 
-void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info){
-    int fd = createNewFIFO(fifo_info);
-    if(fd < 0){
-        fprintf(stderr, "Failed to create new FIFO\n");
-        return;
+void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info_read, FIFO_info *fifo_info_write){
+    int ret;
+
+    createNamedPipe(fifo_info_read);
+    createNamedPipe(fifo_info_write);
+    
+    int fd_read = openNamedPipe(fifo_info_read);
+    if(fd_read < 0){
+        fprintf(stderr, "Failed to create new read FIFO\n");
+        exit(EXIT_FAILURE);
     }
 
-    if(fifo_info->ft == NAMED_PIPE){
+    if(fifo_info_read->ft == NAMED_PIPE){
         client *cl = createClient(NULL);
-        if(aeCreateFileEvent(server->el, fd, AE_READABLE, readFromFIFO, cl) == AE_ERR){
-            fprintf(stderr, "Failed to create event for FIFO\n");
-            close(fd);
+        /*
+         * TODO: 
+         * We are going to use a new write function to write result to FIFO "connection"(which is a named pipe or Cohort queue)
+         * cl->conn should not been considered as a real connection when isFIFO == 1
+         * A more elegant way to deal with this is a new connection type(existed connections def&impl exists in connection.*)
+         * However, this one still works, and working on new connection type may cost a lot of time
+         * I'll do this in a new branch, for this branch lets just stick with this ugly design :(
+         */
+        cl->isFIFO = 1;
+        cl->conn = &fifo_write;
+        if(aeCreateFileEvent(server->el, fd_read, AE_READABLE, readFromFIFO, cl) == AE_ERR){
+            fprintf(stderr, "Failed to create event for read FIFO\n");
+            close(fd_read);
             exit(1);
         }
-    }else if(fifo_info->ft == COHORT_QUEUE){
+    }else if(fifo_info_read->ft == COHORT_QUEUE){
         //register cohort queue as file(or other types if necessary) event in server->el
     }else{
         //should not be here
@@ -123,22 +167,3 @@ void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info){
     return;
 }
 
-/* void clearNamedPipe(); */
-
-/* void clearCohortQueue(); */
-
-/* void unsetFIFOEventLoop(struct redisServer *server, FIFO_Type ft){ */
-/*     switch (ft){ */
-/*         case NAMED_PIPE: */
-/*             clearNamedPipe(); */
-/*             break; */
-/*         case COHORT_QUEUE: */
-/*             clearCohortQueue(); */
-/*             break; */
-
-/*         default: */
-/*             fprintf(stderr, "Failed to unset FIFO Event loop: Should not be here :<\n"); */
-/*     } */
-
-/*     return; */
-/* } */

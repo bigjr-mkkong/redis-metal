@@ -1152,6 +1152,7 @@ typedef struct {
 typedef struct client {
     uint64_t id;            /* Client incremental unique ID. */
     uint64_t flags;         /* Client flags: CLIENT_* macros. */
+    int isFIFO;             /* Indicate cl write to FIFO or not, can be 0 or 1 */
     connection *conn;
     int resp;               /* RESP protocol version. Can be 2 or 3. */
     redisDb *db;            /* Pointer to currently SELECTed DB. */

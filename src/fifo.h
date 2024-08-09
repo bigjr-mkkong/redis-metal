@@ -9,17 +9,20 @@ typedef enum FIFO_Type_t{
 
 typedef struct FIFO_info{
     char named_pipe_path[128];
+    int  mode;
     FIFO_Type ft;
 } FIFO_info;
 
 #define FIFO_READ_SIZE   2048
-#define NAMED_PIPE_PATH     "/tmp/redis-pipe0"
-
+#define READ_NP_PATH     "/tmp/redis-pipe0"
+#define WRITE_NP_PATH     "/tmp/redis-pipe1"
 
 
 #ifndef FIFO_IMPL
-void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info);
+void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info_read, FIFO_info *fifo_info_write);
+int openNamedPipe(FIFO_info *fifo_info);
 void readFromFIFO(struct aeEventLoop *el, int fd, void *private_data, int mask);
+void write2FIFO(struct aeEventLoop *el, int fd, void *private_data, int mask);
 #endif
 
 

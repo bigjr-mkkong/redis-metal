@@ -61,7 +61,14 @@
 
 /* FIFO INFOs for FIFO transfer */
 FIFO_info fifo_read = {
-    .named_pipe_path     = NAMED_PIPE_PATH,
+    .named_pipe_path     = READ_NP_PATH,
+    .mode                = O_RDONLY | O_NONBLOCK,
+    .ft                  = NAMED_PIPE,
+};
+
+FIFO_info fifo_write = {
+    .named_pipe_path     = WRITE_NP_PATH,
+    .mode                = O_WRONLY,
     .ft                  = NAMED_PIPE,
 };
 
@@ -2672,7 +2679,7 @@ void initServer(void) {
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
     /* serverLog(LL_WARNING, "Start setting FIFO event"); */
-    setFIFOEventLoop(&server, &fifo_read);
+    setFIFOEventLoop(&server, &fifo_read, &fifo_write);
 
     /* Create the Redis databases, and initialize other internal state. */
     int slot_count_bits = 0;

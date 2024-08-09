@@ -1,0 +1,3 @@
+[submodule "metal-redis-client"]
+	path = metal-redis-client
+	url = git@github.com:bigjr-mkkong/metal-redis-client.git

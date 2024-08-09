@@ -12,6 +12,7 @@
 #include "script.h"
 #include "fpconv_dtoa.h"
 #include "fmtargs.h"
+#include "fifo.h"
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <math.h>
@@ -131,6 +132,7 @@ client *createClient(connection *conn) {
 #endif
     c->conn = conn;
     c->name = NULL;
+    c->isFIFO = 0;
     c->lib_name = NULL;
     c->lib_ver = NULL;
     c->bufpos = 0;
@@ -217,8 +219,12 @@ void installClientWriteHandler(client *c) {
     {
         ae_barrier = 1;
     }
-    if (connSetWriteHandlerWithBarrier(c->conn, sendReplyToClient, ae_barrier) == C_ERR) {
-        freeClientAsync(c);
+    if(!c->isFIFO){
+        if (connSetWriteHandlerWithBarrier(c->conn, sendReplyToClient, ae_barrier) == C_ERR) {
+            freeClientAsync(c);
+        }
+    }else{
+        fprintf(stdout, "Trying to write responses");
     }
 }
 
@@ -1938,7 +1944,22 @@ int _writeToClient(client *c, ssize_t *nwritten) {
         if (listLength(c->reply) == 0)
             serverAssert(c->reply_bytes == 0);
     } else if (c->bufpos > 0) {
-        *nwritten = connWrite(c->conn, c->buf + c->sentlen, c->bufpos - c->sentlen);
+        if(!c->isFIFO){
+            *nwritten = connWrite(c->conn, c->buf + c->sentlen, c->bufpos - c->sentlen);
+        }else{
+            FIFO_info *write_fifo_info;
+            int fd_writeFIFO;
+
+            fprintf(stdout, "Opening write FIFO\n");
+
+            write_fifo_info = (FIFO_info*)c->conn;
+            fd_writeFIFO = openNamedPipe(write_fifo_info);
+            
+            fprintf(stdout, "Sending responses to FIFO\n");
+           
+            *nwritten = write(fd_writeFIFO, c->buf + c->sentlen, c->bufpos - c->sentlen);
+            close(fd_writeFIFO);
+        }
         if (*nwritten <= 0) return C_ERR;
         c->sentlen += *nwritten;
 
@@ -2489,6 +2510,7 @@ int processCommandAndResetClient(client *c) {
     client *old_client = server.current_client;
     server.current_client = c;
     if (processCommand(c) == C_OK) {
+        /* fprintf(stdout, "Redis received & processed METAL command\n"); */
         commandProcessed(c);
         /* Update the client's memory to include output buffer growth following the
          * processed command. */
