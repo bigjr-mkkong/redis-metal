@@ -1,0 +1,10 @@
+#!/bin/bash
+
+current_dir=$(basename "$PWD")
+
+if [ "$current_dir" == "src"  ]; then
+    ./redis-server ../redis.conf
+else
+    ./src/redis-server redis.conf
+fi
+
