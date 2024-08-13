@@ -15,4 +15,3 @@ BPTreeNode *BPTreeInitialize()
 
     return tree;
 }
-

@@ -27,7 +27,7 @@ all: metal-cmd.so
 
 metal-cmd.xo: ../redismodule.h
 
-metal-cmd.so: metal-cmd.xo bpt-cons.xo
+metal-cmd.so: metal-cmd.xo bpt-helpers.xo
 	$(LD) -o $@ $^ $(SHOBJ_LDFLAGS) $(LIBS) -lc
 
 clean:
