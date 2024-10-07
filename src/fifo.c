@@ -152,7 +152,7 @@ void setFIFOEventLoop(struct redisServer *server, FIFO_info *fifo_info_read, FIF
          * I'll do this in a new branch, for this branch lets just stick with this ugly design :(
          */
         cl->isFIFO = 1;
-        cl->conn = &fifo_write;
+        cl->conn = (connection *)&fifo_write;
         if(aeCreateFileEvent(server->el, fd_read, AE_READABLE, readFromFIFO, cl) == AE_ERR){
             fprintf(stderr, "Failed to create event for read FIFO\n");
             close(fd_read);
